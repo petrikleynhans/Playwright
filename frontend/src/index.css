@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  color-scheme: dark;
+  --bg-0: #0a0a0b;
+  --bg-1: #111113;
+  --bg-2: #17171a;
+  --bg-3: #1f1f23;
+  --border: #2a2a2f;
+  --border-bright: #3a3a42;
+  --text-0: #f4f4f5;
+  --text-1: #c8c8cd;
+  --text-2: #8a8a92;
+  --text-3: #5a5a62;
+
+  --status-final: #4ade80;
+  --status-progress: #facc15;
+  --status-not-started: #555555;
+  --status-cut: #6b7280;
+  --status-discard: #f87171;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+button {
+  font-family: inherit;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  background: var(--bg-2);
+  color: var(--text-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  transition: border-color 0.12s ease;
+}
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--border-bright);
+}
+
+textarea {
+  resize: vertical;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-1);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-bright);
+}
+
+::selection {
+  background: var(--status-progress);
+  color: #000;
+}
