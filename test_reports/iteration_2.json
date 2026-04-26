@@ -1,0 +1,41 @@
+{
+  "summary": "Phase 2 testing complete. Backend: 14/14 new Phase 2 pytest cases PASSED (import markdown/csv/upsert/aliases, lessons aggregation+empty, characters CRUD+19-field protocol+ref images+shot pull on delete+shots-for-character, locations CRUD+shot location_id clear on delete, shot patch character_ids/location_id, film cascade delete includes characters & locations, Unseen integrity preserved). 1 pre-existing Phase 1 test (test_status_distribution) fails because the Unseen seed has drifted from prior iterations (FINAL=14 vs expected 13, IN PROGRESS=5 vs 6) — total still 41, NOT caused by Phase 2 tests. Frontend Playwright: subnav 4 tabs (shots/lessons/characters/locations) all visible; Import modal accepts markdown and reports 'created: 2, updated: 0'; Lessons summary card renders totals/by_decision/by_model + filters; CharactersPage + New Character creates and routes to detail with 19 protocol textareas and visible 'Saved · HH:MM:SS' auto-save indicator (debounced 800ms - typed value persisted via API verify); LocationsPage New Location creates and routes to detail; visual_grammar field auto-saved (verified via API GET); ShotDetail shows 'CHARACTERS IN SHOT' chip-toggle list and 'LINKED LOCATION' select dropdown.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/films/{id}/shots (Unseen)", "issue": "Pre-existing Phase 1 test_status_distribution fails - Unseen seed shifted to 14 FINAL / 5 IN PROGRESS / 21 NOT STARTED / 1 CUT (was 13/6/21/1). Likely caused by manual interaction in earlier iteration. Total still 41. Suggest reseeding by clearing films collection, or relax assertion to >=13 FINAL."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase2.py",
+    "/app/backend/tests/test_film_tracker.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: relax/refresh test_film_tracker.py::test_status_distribution to current Unseen seed reality, or add a /api/seed/reset endpoint that wipes & reseeds the Unseen film deterministically."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~780 lines and contains all models + every route. Splitting into routers/films.py, routers/shots.py, routers/characters.py, routers/locations.py, models.py would improve maintainability before more features are added.",
+    "Import upsert merge logic line ~522 ('v not in (None, '') or k in (\"emotion_level\",)') silently DROPS empty strings on update. So an import that intentionally clears a field (e.g. blanking out audio_notes) cannot empty it via reimport. Consider documenting or always overwriting fields that are present in the imported row.",
+    "@app.on_event('startup'/'shutdown') is deprecated by FastAPI - migrate to lifespan handlers (already noted in iteration_1).",
+    "Character model has 19 protocol fields hardcoded both on Character, CharacterCreate, and CharacterUpdate (60+ duplicate field declarations). Could be DRYed via a shared mixin or **kwargs pattern.",
+    "Lessons endpoint sorts groups by (model, location) but does NOT expose total per group; UI must compute. Minor.",
+    "PATCH endpoints reject empty diffs with 400 ('No fields to update'). Auto-save UI sending unchanged payload would break - confirmed UI debounces only after edits so OK, but worth a defensive 200 noop in the future.",
+    "delete_location sets location_id to None on shots but does not also clear shot.location string field - if user typed location into shot.location too, it stays. Likely intentional separation but could surprise users."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase2.py (new - 14 tests)"
+  ],
+  "success_rate": {"backend": "97% (29/30 incl. pre-existing flaky Phase 1; Phase 2 = 14/14 = 100%)", "frontend": "100% (all Phase 2 flows verified)"},
+  "test_credentials": "N/A - solo app, no auth",
+  "seed_data_creation": "Tests create TEST_Phase2_Film, TEST_LessonsEmpty, TEST_Cascade and clean them up via fixture teardown. Frontend Playwright created TEST_FE_001/TEST_FE_002 shots, TEST_FE_Hero character, TEST_FE_Loc location on Unseen film and cleaned them all up via API DELETE.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 2 backend test suite at /app/backend/tests/test_phase2.py covers import (md/csv/upsert/aliases/404), lessons (groups + empty), characters (defaults+19fields+patch+delete pull from shots+shots-for-character), locations (CRUD+shot location_id clear on delete), shot linking patch, cascade delete includes characters+locations, Unseen integrity. Run with REACT_APP_BACKEND_URL set: `REACT_APP_BACKEND_URL=https://stage-confirm.preview.emergentagent.com pytest backend/tests/ -v`. Frontend testids confirmed: subnav-{shots|lessons|characters|locations}, import-{btn|modal|textarea|submit-btn|result|done-btn}, lessons-{summary|filter-decision|filter-model}, character-{create-btn|name-input|name|delete-btn|chips}, characters-grid, new-character-btn, location-{create-btn|name-input|name|grammar|delete-btn|select}, locations-grid, new-location-btn. ShotDetail uses character-chips and location-select.",
+  "rca of the issue": "Pre-existing Phase 1 status_distribution failure RCA: Unseen film is seeded with deterministic counts in seed_data.UNSEEN_SHOTS (13 FINAL, 6 IN PROGRESS, 21 NOT STARTED, 1 CUT) but seed only runs when films collection is empty. Previous iterations exercised the UI which marked one IN PROGRESS shot as FINAL via Add Iteration FINAL flow, mutating Unseen permanently. Mitigation: either (a) add /api/seed/reset that drops + reseeds Unseen, or (b) remove that specific assertion from Phase 1 tests since it depends on undisturbed seed."
+}

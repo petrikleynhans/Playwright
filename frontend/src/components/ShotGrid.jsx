@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { ACTS, MODELS, SHOT_STATUSES, daysUntil, formatDate, STATUS_COLORS } from "../lib/utils";
 import NewShotModal from "./NewShotModal";
+import ImportModal from "./ImportModal";
+import FilmSubNav from "./FilmSubNav";
 
 const STATUS_LABEL = {
   "FINAL": "FINAL",
@@ -18,6 +20,7 @@ export default function ShotGrid() {
   const [shots, setShots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNewShot, setShowNewShot] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const [filterAct, setFilterAct] = useState("All");
   const [filterModel, setFilterModel] = useState("All");
@@ -61,21 +64,12 @@ export default function ShotGrid() {
   };
 
   if (loading || !film) {
-    return <div className="app-shell"><div className="topbar"><div className="topbar-title"><h1 className="mono">FILM TRACKER</h1></div></div><div className="grid-page"><div className="empty-state">Loading…</div></div></div>;
+    return <div className="app-shell"><FilmSubNav filmId={filmId} film={null} /><div className="grid-page"><div className="empty-state">Loading…</div></div></div>;
   }
 
   return (
     <div className="app-shell">
-      <div className="topbar">
-        <div className="topbar-title">
-          <h1 className="mono" style={{ cursor: "pointer" }} onClick={() => navigate("/")} data-testid="topbar-home">FILM TRACKER</h1>
-          <span className="sub">/ {film.title}</span>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn ghost" onClick={() => navigate("/")} data-testid="back-films-btn">← Films</button>
-          <button className="btn primary" onClick={() => setShowNewShot(true)} data-testid="new-shot-btn">+ New Shot</button>
-        </div>
-      </div>
+      <FilmSubNav filmId={filmId} film={film} />
 
       <div className="grid-page">
         <div className="grid-header">
@@ -118,52 +112,66 @@ export default function ShotGrid() {
               {SHOT_STATUSES.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
-          <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-2)", alignSelf: "center" }} data-testid="visible-count">
-            {filtered.length} of {shots.length} shots
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "var(--text-2)" }} data-testid="visible-count">{filtered.length} of {shots.length}</span>
+            <button className="btn" onClick={() => setShowImport(true)} data-testid="import-btn">Import</button>
+            <button className="btn primary" onClick={() => setShowNewShot(true)} data-testid="new-shot-btn">+ New Shot</button>
           </div>
         </div>
 
-        <div className="shot-grid" data-testid="shot-grid">
-          {filtered.map(s => (
-            <div
-              key={s.id}
-              className={`shot-card ${s.status === "CUT" ? "cut" : ""}`}
-              onClick={() => navigate(`/films/${filmId}/shots/${s.id}`)}
-              data-testid={`shot-card-${s.shot_number}`}
-            >
-              <div className="shot-thumb">
-                {s.current_thumbnail ? (
-                  <img src={s.current_thumbnail} alt={s.shot_number} />
-                ) : (
-                  <div className="shot-thumb-placeholder">No image</div>
-                )}
-                <div className="shot-thumb-overlay">{s.shot_number}</div>
-                <div className="shot-thumb-status" style={{ background: STATUS_COLORS[s.status] }} title={s.status} />
-              </div>
-              <div className="shot-card-body">
-                <div className="row1">
-                  <span className="status-pill" data-status={s.status}>
-                    <span className="dot" style={{ background: STATUS_COLORS[s.status] }} />
-                    {STATUS_LABEL[s.status]}
-                  </span>
-                  <span className="model-badge">{s.model_assigned}</span>
-                </div>
-                <div className="type-loc">{s.shot_type} · {s.location}</div>
-                <div className="action">{s.action_summary}</div>
-                <div className="footer">
-                  <span>{s.act}</span>
-                  <span className="attempt-pill">{s.attempt_count || 0} attempt{s.attempt_count === 1 ? "" : "s"}</span>
-                </div>
-              </div>
+        {shots.length === 0 ? (
+          <div className="cta-block" data-testid="empty-grid">
+            <h4>No shots yet</h4>
+            <p>Import a markdown shot list, or add shots manually.</p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button className="btn primary" onClick={() => setShowImport(true)}>Import Shot List</button>
+              <button className="btn" onClick={() => setShowNewShot(true)}>+ New Shot</button>
             </div>
-          ))}
-        </div>
-        {filtered.length === 0 && (
+          </div>
+        ) : (
+          <div className="shot-grid" data-testid="shot-grid">
+            {filtered.map(s => (
+              <div
+                key={s.id}
+                className={`shot-card ${s.status === "CUT" ? "cut" : ""}`}
+                onClick={() => navigate(`/films/${filmId}/shots/${s.id}`)}
+                data-testid={`shot-card-${s.shot_number}`}
+              >
+                <div className="shot-thumb">
+                  {s.current_thumbnail ? (
+                    <img src={s.current_thumbnail} alt={s.shot_number} />
+                  ) : (
+                    <div className="shot-thumb-placeholder">No image</div>
+                  )}
+                  <div className="shot-thumb-overlay">{s.shot_number}</div>
+                  <div className="shot-thumb-status" style={{ background: STATUS_COLORS[s.status] }} title={s.status} />
+                </div>
+                <div className="shot-card-body">
+                  <div className="row1">
+                    <span className="status-pill" data-status={s.status}>
+                      <span className="dot" style={{ background: STATUS_COLORS[s.status] }} />
+                      {STATUS_LABEL[s.status]}
+                    </span>
+                    <span className="model-badge">{s.model_assigned}</span>
+                  </div>
+                  <div className="type-loc">{s.shot_type} · {s.location}</div>
+                  <div className="action">{s.action_summary}</div>
+                  <div className="footer">
+                    <span>{s.act}</span>
+                    <span className="attempt-pill">{s.attempt_count || 0} attempt{s.attempt_count === 1 ? "" : "s"}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {shots.length > 0 && filtered.length === 0 && (
           <div className="empty-state" style={{ marginTop: 20 }}>No shots match the filters.</div>
         )}
       </div>
 
       {showNewShot && <NewShotModal onClose={() => setShowNewShot(false)} onSaved={handleCreateShot} />}
+      {showImport && <ImportModal filmId={filmId} onClose={() => setShowImport(false)} onImported={load} />}
     </div>
   );
 }

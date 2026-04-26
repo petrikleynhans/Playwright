@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
-import { STATUS_COLORS, DECISION_COLORS, formatDateTime, SHOT_STATUSES } from "../lib/utils";
+import { STATUS_COLORS, formatDateTime, SHOT_STATUSES } from "../lib/utils";
 import AddIterationModal from "./AddIterationModal";
+import FilmSubNav from "./FilmSubNav";
 
 function IterationCard({ it, onDelete }) {
   const [expanded, setExpanded] = useState(false);
@@ -68,17 +69,25 @@ function IterationCard({ it, onDelete }) {
 export default function ShotDetail() {
   const { filmId, shotId } = useParams();
   const navigate = useNavigate();
+  const [film, setFilm] = useState(null);
   const [shot, setShot] = useState(null);
   const [iterations, setIterations] = useState([]);
+  const [characters, setCharacters] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [s, its] = await Promise.all([api.getShot(shotId), api.listIterations(shotId)]);
-      setShot(s);
-      setIterations(its);
+      const [f, s, its, chars, locs] = await Promise.all([
+        api.getFilm(filmId),
+        api.getShot(shotId),
+        api.listIterations(shotId),
+        api.listCharacters(filmId),
+        api.listLocations(filmId),
+      ]);
+      setFilm(f); setShot(s); setIterations(its); setCharacters(chars); setLocations(locs);
     } finally {
       setLoading(false);
     }
@@ -99,23 +108,31 @@ export default function ShotDetail() {
   };
 
   const handleStatusChange = async (newStatus) => {
-    await api.updateShot(shotId, { status: newStatus });
-    load();
+    const updated = await api.updateShot(shotId, { status: newStatus });
+    setShot(updated);
+  };
+
+  const toggleCharacter = async (id) => {
+    const current = shot.character_ids || [];
+    const next = current.includes(id) ? current.filter(c => c !== id) : [...current, id];
+    const updated = await api.updateShot(shotId, { character_ids: next });
+    setShot(updated);
+  };
+
+  const setLocation = async (id) => {
+    const updated = await api.updateShot(shotId, { location_id: id || null });
+    setShot(updated);
   };
 
   if (loading || !shot) {
-    return <div className="app-shell"><div className="topbar"><div className="topbar-title"><h1 className="mono">FILM TRACKER</h1></div></div><div className="grid-page"><div className="empty-state">Loading…</div></div></div>;
+    return <div className="app-shell"><FilmSubNav filmId={filmId} film={film} /><div className="grid-page"><div className="empty-state">Loading…</div></div></div>;
   }
+
+  const linkedLocation = locations.find(l => l.id === shot.location_id);
 
   return (
     <div className="app-shell">
-      <div className="topbar">
-        <div className="topbar-title">
-          <h1 className="mono" style={{ cursor: "pointer" }} onClick={() => navigate("/")}>FILM TRACKER</h1>
-          <span className="sub">/ {shot.shot_number}</span>
-        </div>
-        <button className="btn ghost" onClick={() => navigate(`/films/${filmId}`)} data-testid="back-grid-btn">← Back to Grid</button>
-      </div>
+      <FilmSubNav filmId={filmId} film={film} />
 
       <div className="detail-page">
         {/* LEFT: SHOT SPEC */}
@@ -124,7 +141,7 @@ export default function ShotDetail() {
           <h2 data-testid="detail-shot-number">{shot.shot_number}</h2>
           <div className="filename">{shot.filename}</div>
 
-          <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span className="status-pill" data-status={shot.status}>
               <span className="dot" style={{ background: STATUS_COLORS[shot.status] }} />
               {shot.status}
@@ -151,27 +168,54 @@ export default function ShotDetail() {
             <div className="spec-row"><span className="label">Emotion</span><span className="value mono">{shot.emotion_level}/10</span></div>
           </div>
 
-          {shot.framing && (
-            <>
-              <div className="spec-section-title">Framing</div>
-              <div className="spec-text">{shot.framing}</div>
-            </>
-          )}
+          {shot.framing && (<><div className="spec-section-title">Framing</div><div className="spec-text">{shot.framing}</div></>)}
           <div className="spec-section-title">Action</div>
           <div className="spec-text">{shot.action_summary}</div>
+          {shot.audio_notes && (<><div className="spec-section-title">Audio</div><div className="spec-text">{shot.audio_notes}</div></>)}
+          {shot.special_notes && (<><div className="spec-section-title">Special Notes</div><div className="spec-text warn">{shot.special_notes}</div></>)}
 
-          {shot.audio_notes && (
-            <>
-              <div className="spec-section-title">Audio</div>
-              <div className="spec-text">{shot.audio_notes}</div>
-            </>
+          {/* Characters in this shot */}
+          <div className="spec-section-title" style={{ marginTop: 18 }}>Characters in shot</div>
+          {characters.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+              No characters defined. <a onClick={() => navigate(`/films/${filmId}/characters`)} style={{ color: "var(--status-progress)", cursor: "pointer", textDecoration: "underline dotted" }}>Add one →</a>
+            </div>
+          ) : (
+            <div className="chips" data-testid="character-chips">
+              {characters.map(c => (
+                <span
+                  key={c.id}
+                  className="chip"
+                  data-selected={(shot.character_ids || []).includes(c.id)}
+                  onClick={() => toggleCharacter(c.id)}
+                  data-testid={`character-chip-${c.name.toLowerCase().replace(/\s+/g, "-")}`}
+                >{c.name}</span>
+              ))}
+            </div>
           )}
 
-          {shot.special_notes && (
-            <>
-              <div className="spec-section-title">Special Notes</div>
-              <div className="spec-text warn">{shot.special_notes}</div>
-            </>
+          {/* Linked location */}
+          <div className="spec-section-title">Linked Location</div>
+          {locations.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+              No locations defined. <a onClick={() => navigate(`/films/${filmId}/locations`)} style={{ color: "var(--status-progress)", cursor: "pointer", textDecoration: "underline dotted" }}>Add one →</a>
+            </div>
+          ) : (
+            <select
+              value={shot.location_id || ""}
+              onChange={e => setLocation(e.target.value)}
+              style={{ width: "100%", fontSize: 12 }}
+              data-testid="location-select"
+            >
+              <option value="">— None —</option>
+              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          )}
+          {linkedLocation && (
+            <a
+              onClick={() => navigate(`/films/${filmId}/locations/${linkedLocation.id}`)}
+              style={{ fontSize: 11, color: "var(--text-2)", cursor: "pointer", textDecoration: "underline dotted", display: "inline-block", marginTop: 4 }}
+            >View {linkedLocation.name} →</a>
           )}
 
           <button
