@@ -59,12 +59,22 @@ After Phase 1 MVP, user requested in this order: **CSV/Markdown import → Lesso
 - ✅ Multi-film support (user-requested) — Films list page
 
 ### 2026-04-26 — Phase 2 Add-ons Complete
-- ✅ **CSV / Markdown shot list import** — paste or upload `.md`/`.csv`. Tolerant column-name aliases (Shot # / Shot Number / Action / Action / Subject / Emotion (0–10) etc). Upserts by shot_number (creates new, updates existing). Shows created/updated counts + warnings. Backend: `/api/films/{id}/import` + `/app/backend/importers.py`.
-- ✅ **Lessons page** — aggregates iterations across the film grouped by Model × Location. Summary cards (total iterations, by_decision, by_model). Decision + Model filters. Each lesson entry shows shot link, what_failed (red), what_worked (green). Backend: `/api/films/{id}/lessons`.
-- ✅ **Character library** — Field-gated 19-field protocol per `CHARACTER_PROMPT_PROTOCOL.md`. Character cards with Soul ID pill (NOT SET / GENERATED / LOCKED). Detail view: full 19-field editor with hint per field, soul-id anchor uploader, multi-image reference gallery, "Appears in N shots" computed from `Shot.character_ids`. Auto-saves on edit (800ms debounce). Backend: full CRUD on `/api/films/{id}/characters` and `/api/characters/{id}/shots`.
-- ✅ **Location library** — Card list, detail with `visual_grammar` (locked text, monospace), lighting and sound notes, reference image gallery. "Used in N shots" computed from `Shot.location_id`. Auto-saves. Backend: full CRUD.
-- ✅ **Cross-linking on Shot Detail** — Characters chip toggle (multi-select to `character_ids`); Linked Location dropdown (sets `location_id`). Both link back to character/location detail.
-- ✅ **Shared FilmSubNav** — Shots / Lessons / Characters / Locations tabs across all film pages.
+- ✅ **CSV / Markdown shot list import** with tolerant column-name aliases. Upserts by shot_number.
+- ✅ **Lessons page** — aggregated by Model × Location, decision + model filters
+- ✅ **Character library** — 19-field protocol per `CHARACTER_PROMPT_PROTOCOL.md`, Soul ID anchor, ref images, computed "Appears in N shots"
+- ✅ **Location library** — visual_grammar lock, ref images, computed "Used in N shots"
+- ✅ **Cross-linking** — character chips + location dropdown on Shot Detail
+- ✅ Shared FilmSubNav (Shots / Lessons / Characters / Locations)
+
+### 2026-04-27 — Phase 3 Add-ons Complete
+- ✅ **Act dividers in Shot Grid** — full-width section header between act groups (`ACT 1 · 18 shots`) with subtle gradient line. Filtering by Act preserves divider on visible group only.
+- ✅ **Stills as first-class iterations** — `Iteration.kind: STILL | VIDEO`. `Shot.still_count` + `Shot.current_still` separate from `attempt_count`/`current_thumbnail`. Per-kind attempt counters: stills #1-N independent of videos #1-N.
+- ✅ **Two iteration sections on Shot Detail** — STILLS (cyan kind-badge, Seedream/Flux defaults) and VIDEO ITERATIONS (purple kind-badge, Kling/Veo defaults). Each with its own + Add button and count.
+- ✅ **Reference Still display** — when `current_still` is set, image renders in left spec column under "Reference Still (FINAL)" label.
+- ✅ **Status decoupling** — STILL FINAL promotes `current_still` but does NOT mark shot complete. Only VIDEO FINAL sets `shot.status = FINAL`.
+- ✅ **Shot card dual indicators** — `V:N` (and `S:N` when stills exist) attempt counts, plus `STILL` / `STILL ✓` markers on thumbnail when ref is ready.
+- ✅ **Lessons Kind filter** — All / Stills / Videos. Each entry shows kind badge alongside decision pill.
+- ✅ **FINAL Still requires image** validation in modal — prevents marking still FINAL without uploading the actual reference.
 
 ## Test Status
 - **Phase 1 backend:** 15/15 pytest cases pass (CRUD + cascade, ordering, status distribution, iteration validation, attempt counter, thumbnail promotion, FINAL not auto-downgraded). One status-distribution assertion is stale because UI testing in Phase 2 mutated the Unseen seed (FINAL went 13 → 14); not a real bug.

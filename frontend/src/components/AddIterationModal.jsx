@@ -44,6 +44,7 @@ export default function AddIterationModal({ shot, kind = "VIDEO", onClose, onSav
     if (!whatWorked.trim()) errs.whatWorked = "Required";
     if (!decision) errs.decision = "Required";
     if (!promptText.trim()) errs.promptText = "Required";
+    if (isStill && decision === "FINAL" && !thumbnail) errs.thumb = "FINAL still requires an uploaded image — the image becomes the reference for video generation.";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -146,6 +147,7 @@ export default function AddIterationModal({ shot, kind = "VIDEO", onClose, onSav
                 )}
               </div>
               {thumbError && <span className="field-error-msg">{thumbError}</span>}
+              {errors.thumb && <span className="field-error-msg" data-testid="iter-thumb-error">{errors.thumb}</span>}
             </div>
           </div>
 
