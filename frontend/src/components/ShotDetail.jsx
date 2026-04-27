@@ -8,18 +8,20 @@ import FilmSubNav from "./FilmSubNav";
 function IterationCard({ it, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const truncated = (it.prompt_text || "").length > 200;
+  const kind = it.kind || "VIDEO";
 
   return (
-    <div className="iter-card" data-decision={it.decision} data-testid={`iter-card-${it.attempt_number}`}>
+    <div className="iter-card" data-decision={it.decision} data-testid={`iter-card-${kind.toLowerCase()}-${it.attempt_number}`}>
       <div className="iter-card-head">
         <div className="left">
           <span className="attempt mono">#{String(it.attempt_number).padStart(2, "0")}</span>
+          <span className={`kind-badge ${kind === "STILL" ? "still" : "video"}`}>{kind}</span>
           <span className="decision-pill" data-decision={it.decision}>{it.decision}</span>
           <span className="model-badge">{it.model_used}</span>
         </div>
         <div className="meta">
           <span>{formatDateTime(it.created_at)}</span>
-          <button className="delete-iter" onClick={() => onDelete(it.id)} title="Delete iteration" data-testid={`iter-delete-${it.attempt_number}`}>✕</button>
+          <button className="delete-iter" onClick={() => onDelete(it.id)} title="Delete iteration" data-testid={`iter-delete-${kind.toLowerCase()}-${it.attempt_number}`}>✕</button>
         </div>
       </div>
 
@@ -35,7 +37,6 @@ function IterationCard({ it, onDelete }) {
           <div
             className={`iter-prompt ${(!expanded && truncated) ? "collapsed" : ""}`}
             onClick={() => setExpanded(e => !e)}
-            data-testid={`iter-prompt-${it.attempt_number}`}
           >
             {it.prompt_text}
           </div>
@@ -66,6 +67,40 @@ function IterationCard({ it, onDelete }) {
   );
 }
 
+function IterationSection({ kind, iterations, onAdd, onDelete }) {
+  const isStill = kind === "STILL";
+  const empty = iterations.length === 0;
+  const title = isStill ? "Stills" : "Video Iterations";
+  const sub = isStill
+    ? "Reference image generation (Seedream / Flux). FINAL still becomes the I2V source."
+    : "Final motion takes (Kling / Veo / etc). FINAL video promotes the shot to complete.";
+  return (
+    <div className={`iter-section ${empty ? "empty" : ""}`} data-testid={`iter-section-${kind.toLowerCase()}`}>
+      <div className="iter-section-head">
+        <div className="left">
+          <span className={`kind-badge ${isStill ? "still" : "video"}`}>{kind}</span>
+          <h3>{title}</h3>
+          <span className="count">{iterations.length} attempt{iterations.length === 1 ? "" : "s"}</span>
+        </div>
+        <button
+          className="btn primary add-kind-btn"
+          onClick={onAdd}
+          data-testid={`add-${kind.toLowerCase()}-btn`}
+        >+ Add {isStill ? "Still" : "Video"}</button>
+      </div>
+      {empty ? (
+        <div className="iter-section-empty">{sub}</div>
+      ) : (
+        <div className="iter-section-body">
+          {iterations.map(it => (
+            <IterationCard key={it.id} it={it} onDelete={onDelete} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ShotDetail() {
   const { filmId, shotId } = useParams();
   const navigate = useNavigate();
@@ -75,7 +110,7 @@ export default function ShotDetail() {
   const [characters, setCharacters] = useState([]);
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
+  const [addKind, setAddKind] = useState(null); // "STILL" | "VIDEO" | null
 
   const load = async () => {
     setLoading(true);
@@ -97,7 +132,7 @@ export default function ShotDetail() {
 
   const handleSave = async (payload) => {
     await api.createIteration(shotId, payload);
-    setShowAdd(false);
+    setAddKind(null);
     await load();
   };
 
@@ -129,6 +164,8 @@ export default function ShotDetail() {
   }
 
   const linkedLocation = locations.find(l => l.id === shot.location_id);
+  const stills = iterations.filter(it => (it.kind || "VIDEO") === "STILL");
+  const videos = iterations.filter(it => (it.kind || "VIDEO") === "VIDEO");
 
   return (
     <div className="app-shell">
@@ -168,13 +205,23 @@ export default function ShotDetail() {
             <div className="spec-row"><span className="label">Emotion</span><span className="value mono">{shot.emotion_level}/10</span></div>
           </div>
 
+          {/* Reference still display */}
+          {shot.current_still && (
+            <div className="ref-still-block">
+              <div className="ref-still-label">
+                <span className="kind-badge still">STILL</span>
+                Reference Still (FINAL)
+              </div>
+              <img src={shot.current_still} alt="reference still" />
+            </div>
+          )}
+
           {shot.framing && (<><div className="spec-section-title">Framing</div><div className="spec-text">{shot.framing}</div></>)}
           <div className="spec-section-title">Action</div>
           <div className="spec-text">{shot.action_summary}</div>
           {shot.audio_notes && (<><div className="spec-section-title">Audio</div><div className="spec-text">{shot.audio_notes}</div></>)}
           {shot.special_notes && (<><div className="spec-section-title">Special Notes</div><div className="spec-text warn">{shot.special_notes}</div></>)}
 
-          {/* Characters in this shot */}
           <div className="spec-section-title" style={{ marginTop: 18 }}>Characters in shot</div>
           {characters.length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--text-3)" }}>
@@ -194,7 +241,6 @@ export default function ShotDetail() {
             </div>
           )}
 
-          {/* Linked location */}
           <div className="spec-section-title">Linked Location</div>
           {locations.length === 0 ? (
             <div style={{ fontSize: 12, color: "var(--text-3)" }}>
@@ -217,38 +263,30 @@ export default function ShotDetail() {
               style={{ fontSize: 11, color: "var(--text-2)", cursor: "pointer", textDecoration: "underline dotted", display: "inline-block", marginTop: 4 }}
             >View {linkedLocation.name} →</a>
           )}
-
-          <button
-            className="btn primary add-iter-btn"
-            onClick={() => setShowAdd(true)}
-            data-testid="add-iteration-btn"
-          >
-            + Add Iteration
-          </button>
         </div>
 
-        {/* RIGHT: ITERATION LOG */}
-        <div className="iter-log">
-          <div className="iter-log-header">
-            <h3>Iteration Log · {iterations.length} attempt{iterations.length === 1 ? "" : "s"}</h3>
-          </div>
-
-          {iterations.length === 0 ? (
-            <div className="empty-state" data-testid="no-iterations">
-              No iterations yet. Click <strong>+ Add Iteration</strong> to log your first attempt.
-            </div>
-          ) : (
-            iterations.map(it => (
-              <IterationCard key={it.id} it={it} onDelete={handleDelete} />
-            ))
-          )}
+        {/* RIGHT: TWO ITERATION SECTIONS */}
+        <div>
+          <IterationSection
+            kind="STILL"
+            iterations={stills}
+            onAdd={() => setAddKind("STILL")}
+            onDelete={handleDelete}
+          />
+          <IterationSection
+            kind="VIDEO"
+            iterations={videos}
+            onAdd={() => setAddKind("VIDEO")}
+            onDelete={handleDelete}
+          />
         </div>
       </div>
 
-      {showAdd && (
+      {addKind && (
         <AddIterationModal
           shot={shot}
-          onClose={() => setShowAdd(false)}
+          kind={addKind}
+          onClose={() => setAddKind(null)}
           onSaved={handleSave}
         />
       )}

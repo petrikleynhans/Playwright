@@ -1,0 +1,42 @@
+{
+  "summary": "Phase 3 (Stills + Act dividers) testing complete. Backend: 11/11 NEW Phase 3 pytest cases PASSED (still_count/current_still defaults, STILL kind increments still_count not attempt_count, STILL FINAL promotes current_still and does NOT change shot.status, attempt_number is per-kind independent, VIDEO kind backwards-compatible default, kind filter on list, delete decrements correct counter, lessons response includes kind on each iteration, Unseen integrity preserved). Combined run: 40/41 passing (1 pre-existing Phase 1 status_distribution failure unrelated to Phase 3 — Unseen seed drift). Frontend Playwright: act-divider-{ACT 1|ACT 2|ACT 3} all present with correct shot counts (18/12/11), shot card V:N footer rendering, ShotDetail shows both iter-section-still and iter-section-video with separate +Add Still / +Add Video buttons, AddStillModal opens with 'Add Still — Shot X' header and 'Save Still' button, STILL FINAL iteration successfully created via UI (verified via API kind=STILL filter), Lessons page lessons-filter-kind dropdown shows All/Stills/Videos. Test data cleaned up (TEST_FE_STILL iteration deleted via DELETE /api/iterations/{id}).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/films/{id}/shots (Unseen)", "issue": "Pre-existing Phase 1 test_status_distribution still failing (NOT STARTED=20 vs expected 21, IN PROGRESS=7 vs 6). Caused by accumulated UI interactions across iterations promoting shots to FINAL/IN PROGRESS. NOT a Phase 3 regression. Recommend a /api/seed/reset endpoint or relaxing the assertion."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase3_stills.py",
+    "/app/backend/tests/test_phase2.py",
+    "/app/backend/tests/test_film_tracker.py",
+    "/app/test_reports/pytest/phase3_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Add /api/seed/reset endpoint or relax test_status_distribution assertions — pre-existing flake from prior iterations, not Phase 3.",
+    "(Optional) The 'Reference Still (FINAL)' left-column block only renders when current_still has an actual thumbnail data URL. Saving a STILL FINAL without an image (no drag-drop) leaves current_still=null and no Reference Still block appears — correct behavior, but UI could show a placeholder hint."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~803 lines. With the Iteration kind branch + still_count + current_still added to create_iteration and delete_iteration, the file is larger and would benefit from extraction into routers/iterations.py and models.py before further phases.",
+    "create_iteration: when payload.decision==FINAL and is_still, the thumbnail is only promoted to current_still if payload.thumbnail is truthy. A FINAL still saved without a thumbnail leaves the shot with no current_still and thus no UI 'Reference Still' block — by spec but worth a friendlier UX (e.g., reject FINAL still without thumbnail in the modal, or surface a tooltip).",
+    "list_iterations: kind query param is silently ignored if value is anything other than 'STILL'/'VIDEO'. A 400 on invalid values would be more defensive (matches Pydantic Literal patterns elsewhere).",
+    "delete_iteration: $inc by -1 can drive still_count/attempt_count negative if a record's kind was mutated externally. Use $max guard or compute count from collection on delete for safety.",
+    "Iteration.kind defaults to 'VIDEO' — good for backwards compat. But list_iterations also explicitly backfills kind for legacy entries on read (line ~466). DRY: consider running a one-time migration to set kind=VIDEO on legacy docs and dropping the read-time backfill.",
+    "@app.on_event('startup'/'shutdown') still using deprecated FastAPI pattern (flagged in iterations 1 & 2)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase3_stills.py (new - 11 tests, all passing)"
+  ],
+  "success_rate": {"backend": "97.5% (40/41 — 11/11 Phase 3 = 100%; only pre-existing Phase 1 flake fails)", "frontend": "100% (all Phase 3 flows verified: act dividers, V/S footer, two-section shot detail, AddStillModal, kind filter on Lessons)"},
+  "test_credentials": "N/A — solo app, no auth",
+  "seed_data_creation": "Phase 3 tests create temp_film='TEST_Phase3_Stills' + child shot/iterations and tear them down via fixture. Frontend Playwright created TEST_FE_STILL iteration on Unseen shot 01 and deleted it via API DELETE before finishing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 3 backend tests at /app/backend/tests/test_phase3_stills.py cover: (1) Shot.still_count + current_still defaults, (2) STILL kind increments still_count not attempt_count, (3) STILL FINAL promotes current_still and does NOT change shot.status (status tracks video completion only), (4) attempt_number is per-kind independent (first STILL = #1 even after 5 video iterations), (5) VIDEO backwards-compatible default when kind omitted, (6) GET /iterations?kind=STILL|VIDEO filter, (7) DELETE iteration decrements correct counter by kind, (8) /films/{id}/lessons iterations include 'kind' field. Frontend testids confirmed: act-divider-{ACT 1|ACT 2|ACT 3}, iter-section-{still|video}, add-still-btn, add-video-btn, lessons-filter-kind. AddIterationModal uses iter-{prompt|failed|worked}-input, iter-decision-{discard|keep|final}, iter-thumb-dropzone, iter-save-btn. Pre-existing Phase 1 status_distribution failure persists — NOT Phase 3 related.",
+  "rca of the issue": "No new bugs found in Phase 3. Pre-existing flake (test_status_distribution) RCA documented in iteration_2.json: Unseen seed only runs when films collection is empty, so manual UI interactions across iterations have permanently mutated 1 shot from NOT STARTED→IN PROGRESS. Mitigation: implement /api/seed/reset that drops Unseen and reseeds, or remove that brittle exact-count assertion."
+}

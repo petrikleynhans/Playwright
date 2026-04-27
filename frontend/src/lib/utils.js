@@ -39,6 +39,8 @@ export const DECISION_COLORS = {
 };
 
 export const MODELS = ["Kling 3.0", "Veo 3.1 Fast", "WAN 2.6", "Sora 2", "Seedream 5.0 Lite", "Flux 1.1"];
+export const STILL_MODELS = ["Seedream 5.0 Lite", "Flux 1.1"];
+export const VIDEO_MODELS = ["Kling 3.0", "Veo 3.1 Fast", "WAN 2.6", "Sora 2"];
 export const ACTS = ["ACT 1", "ACT 2", "ACT 3"];
 export const SHOT_TYPES = ["ECU", "CU", "MS", "WS", "Insert"];
 export const SHOT_STATUSES = ["NOT STARTED", "IN PROGRESS", "FINAL", "CUT"];

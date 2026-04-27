@@ -12,6 +12,7 @@ export default function LessonsPage() {
   const [loading, setLoading] = useState(true);
   const [filterDecision, setFilterDecision] = useState("ALL");
   const [filterModel, setFilterModel] = useState("All");
+  const [filterKind, setFilterKind] = useState("ALL");
   const [openKey, setOpenKey] = useState(null);
 
   const load = async () => {
@@ -33,10 +34,14 @@ export default function LessonsPage() {
       .filter(g => filterModel === "All" || g.model === filterModel)
       .map(g => ({
         ...g,
-        iterations: g.iterations.filter(it => filterDecision === "ALL" || it.decision === filterDecision),
+        iterations: g.iterations.filter(it => {
+          if (filterDecision !== "ALL" && it.decision !== filterDecision) return false;
+          if (filterKind !== "ALL" && (it.kind || "VIDEO") !== filterKind) return false;
+          return true;
+        }),
       }))
       .filter(g => g.iterations.length > 0);
-  }, [data, filterDecision, filterModel]);
+  }, [data, filterDecision, filterModel, filterKind]);
 
   if (loading || !data) {
     return <div className="app-shell"><FilmSubNav filmId={filmId} film={film} /><div className="grid-page"><div className="empty-state">Loading…</div></div></div>;
@@ -89,6 +94,14 @@ export default function LessonsPage() {
 
             <div className="filter-bar">
               <div className="filter-group">
+                <label>Kind</label>
+                <select value={filterKind} onChange={e => setFilterKind(e.target.value)} data-testid="lessons-filter-kind">
+                  <option value="ALL">All</option>
+                  <option value="STILL">Stills</option>
+                  <option value="VIDEO">Videos</option>
+                </select>
+              </div>
+              <div className="filter-group">
                 <label>Decision</label>
                 <select value={filterDecision} onChange={e => setFilterDecision(e.target.value)} data-testid="lessons-filter-decision">
                   <option value="ALL">All</option>
@@ -134,6 +147,7 @@ export default function LessonsPage() {
                               onClick={() => navigate(`/films/${filmId}/shots/${it.shot_id}`)}
                             >Shot {it.shot_number}</span>
                             <span>· attempt #{it.attempt_number}</span>
+                            <span className={`kind-badge ${(it.kind || "VIDEO") === "STILL" ? "still" : "video"}`}>{it.kind || "VIDEO"}</span>
                             <span className="decision-pill" data-decision={it.decision}>{it.decision}</span>
                           </div>
                           <div className="pair">

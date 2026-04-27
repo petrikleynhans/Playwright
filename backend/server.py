@@ -32,6 +32,7 @@ ShotTypeEnum = Literal["ECU", "CU", "MS", "WS", "Insert"]
 ShotStatusEnum = Literal["NOT STARTED", "IN PROGRESS", "FINAL", "CUT"]
 FilmStatusEnum = Literal["IN PRODUCTION", "COMPLETE"]
 DecisionEnum = Literal["DISCARD", "KEEP", "FINAL"]
+IterationKind = Literal["STILL", "VIDEO"]
 SoulIdStatus = Literal["NOT SET", "GENERATED", "LOCKED"]
 
 # 19-field character protocol fields
@@ -93,8 +94,10 @@ class Shot(BaseModel):
     special_notes: str = ""
     duration: str = ""
     status: ShotStatusEnum = "NOT STARTED"
-    current_thumbnail: Optional[str] = None  # base64 data URL
-    attempt_count: int = 0
+    current_thumbnail: Optional[str] = None  # base64 data URL — promoted from FINAL VIDEO iteration
+    current_still: Optional[str] = None  # base64 data URL — promoted from FINAL STILL iteration
+    attempt_count: int = 0  # video iteration count
+    still_count: int = 0  # still iteration count
     sort_key: str = ""  # for natural ordering
     character_ids: List[str] = Field(default_factory=list)
     location_id: Optional[str] = None
@@ -140,6 +143,7 @@ class ShotUpdate(BaseModel):
     duration: Optional[str] = None
     status: Optional[ShotStatusEnum] = None
     current_thumbnail: Optional[str] = None
+    current_still: Optional[str] = None
     character_ids: Optional[List[str]] = None
     location_id: Optional[str] = None
 
@@ -275,6 +279,7 @@ class Iteration(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     shot_id: str
+    kind: IterationKind = "VIDEO"
     attempt_number: int
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     model_used: ModelEnum
@@ -287,6 +292,7 @@ class Iteration(BaseModel):
 
 
 class IterationCreate(BaseModel):
+    kind: IterationKind = "VIDEO"
     model_used: ModelEnum
     prompt_text: str
     thumbnail: Optional[str] = None
@@ -448,10 +454,16 @@ async def delete_shot(shot_id: str):
 
 # ---------------- ITERATION ROUTES ----------------
 @api_router.get("/shots/{shot_id}/iterations", response_model=List[Iteration])
-async def list_iterations(shot_id: str):
-    its = await db.iterations.find({"shot_id": shot_id}, {"_id": 0}).sort("attempt_number", 1).to_list(1000)
+async def list_iterations(shot_id: str, kind: Optional[str] = None):
+    q = {"shot_id": shot_id}
+    if kind in ("STILL", "VIDEO"):
+        q["kind"] = kind
+    its = await db.iterations.find(q, {"_id": 0}).sort("attempt_number", 1).to_list(1000)
     for it in its:
         deserialize_dt(it, ["created_at"])
+        # backfill kind for legacy iterations
+        if not it.get("kind"):
+            it["kind"] = "VIDEO"
     return its
 
 
@@ -465,21 +477,28 @@ async def create_iteration(shot_id: str, payload: IterationCreate):
     if not payload.what_worked.strip():
         raise HTTPException(400, "what_worked is required")
 
-    # determine attempt_number
-    next_attempt = (shot.get("attempt_count") or 0) + 1
+    is_still = payload.kind == "STILL"
+    counter_field = "still_count" if is_still else "attempt_count"
+    promoted_field = "current_still" if is_still else "current_thumbnail"
+
+    next_attempt = (shot.get(counter_field) or 0) + 1
     iteration = Iteration(shot_id=shot_id, attempt_number=next_attempt, **payload.model_dump())
     doc = serialize_dt(iteration.model_dump())
     await db.iterations.insert_one(doc)
 
-    # update shot: attempt_count, status, current_thumbnail
-    shot_updates = {"attempt_count": next_attempt}
-    # status logic
+    shot_updates = {counter_field: next_attempt}
+
     if payload.decision == "FINAL":
-        shot_updates["status"] = "FINAL"
-        if payload.thumbnail:
-            shot_updates["current_thumbnail"] = payload.thumbnail
+        if is_still:
+            # FINAL still: promote still thumbnail. Do NOT change shot status — that tracks video completion.
+            if payload.thumbnail:
+                shot_updates[promoted_field] = payload.thumbnail
+        else:
+            # FINAL video: status -> FINAL and promote video thumbnail
+            shot_updates["status"] = "FINAL"
+            if payload.thumbnail:
+                shot_updates[promoted_field] = payload.thumbnail
     else:
-        # only auto-bump to IN PROGRESS if shot is not already FINAL or CUT
         current_status = shot.get("status", "NOT STARTED")
         if current_status == "NOT STARTED":
             shot_updates["status"] = "IN PROGRESS"
@@ -495,8 +514,8 @@ async def delete_iteration(iteration_id: str):
     if not it:
         raise HTTPException(404, "Iteration not found")
     await db.iterations.delete_one({"id": iteration_id})
-    # decrement attempt_count
-    await db.shots.update_one({"id": it["shot_id"]}, {"$inc": {"attempt_count": -1}})
+    counter_field = "still_count" if it.get("kind") == "STILL" else "attempt_count"
+    await db.shots.update_one({"id": it["shot_id"]}, {"$inc": {counter_field: -1}})
     return {"ok": True}
 
 
@@ -580,6 +599,7 @@ async def lessons(film_id: str):
             "shot_number": shot["shot_number"],
             "attempt_number": it["attempt_number"],
             "decision": it["decision"],
+            "kind": it.get("kind", "VIDEO"),
             "created_at": it["created_at"],
             "what_failed": it["what_failed"],
             "what_worked": it["what_worked"],

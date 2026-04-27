@@ -21,7 +21,7 @@ export const api = {
   deleteShot: (id) => client.delete(`/shots/${id}`).then(r => r.data),
 
   // Iterations
-  listIterations: (shotId) => client.get(`/shots/${shotId}/iterations`).then(r => r.data),
+  listIterations: (shotId, kind) => client.get(`/shots/${shotId}/iterations`, { params: kind ? { kind } : {} }).then(r => r.data),
   createIteration: (shotId, data) => client.post(`/shots/${shotId}/iterations`, data).then(r => r.data),
   deleteIteration: (id) => client.delete(`/iterations/${id}`).then(r => r.data),
 
